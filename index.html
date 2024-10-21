@@ -1,9 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Interaction Tracker</title>
+</head>
 <body>
-  <h1>Hello from the embedded page!</h1>
-  <script>
-    alert('JavaScript in an iframe works!');
-  </script>
+
+    <!-- Embed the YouTube video via IFrame API -->
+    <div id="player"></div>
+
+    <script>
+        // SharePoint REST API URL (replace with your actual SharePoint site URL and list name)
+        const siteUrl = "https://codekalbinus.sharepoint.com/sites/TestingSite"; // <-- Add your SharePoint site URL here
+        const listName = "Video Interactions"; // <-- Add your SharePoint list name here
+
+        // Load the YouTube IFrame Player API asynchronously
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // This function creates the YouTube player after the API is loaded
+        var player;
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '360',
+                width: '640',
+                videoId: 'L0N80PBbPHQ', // <-- Replace with your YouTube video ID
+                events: {
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        // Handle state changes of the YouTube video (play, pause, end)
+        function onPlayerStateChange(event) {
+            if (event.data == YT.PlayerState.PLAYING) {
+                console.log("Video started");
+                sendDataToSharePoint("your-youtube-video-id", "play");
+            } else if (event.data == YT.PlayerState.PAUSED) {
+                console.log("Video paused");
+                sendDataToSharePoint("your-youtube-video-id", "pause");
+            } else if (event.data == YT.PlayerState.ENDED) {
+                console.log("Video ended");
+                sendDataToSharePoint("your-youtube-video-id", "end");
+            }
+        }
+
+        // Function to send data to SharePoint list via REST API
+        function sendDataToSharePoint(videoId, eventType) {
+            // Get current timestamp
+            var timestamp = new Date().toISOString();
+
+            // Prepare the item data for the SharePoint list
+            var itemData = {
+                __metadata: { "type": "Video%20Interactions" }, // Adjust this to your list's internal name
+                Title: videoId, // Replace with the column name that represents Video ID
+                EventType: eventType, // Replace with the column name that represents Event Type
+                Timestamp: timestamp // Replace with the column name that represents Timestamp
+            };
+
+            // Send the data to SharePoint using the REST API
+            fetch(`${siteUrl}/_api/web/lists/getbytitle('${listName}')/items`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': document.getElementById('__REQUESTDIGEST').value // Required for authentication
+                },
+                body: JSON.stringify(itemData)
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch(error => console.error('Error:', error));
+        }
+
+    </script>
+
+    <!-- Include SharePoint script to get __REQUESTDIGEST -->
+    <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-3.5.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Get the __REQUESTDIGEST token for authentication
+            $.ajax({
+                url: `${siteUrl}/_api/contextinfo`,
+                method: "POST",
+                headers: {
+                    "Accept": "application/json; odata=verbose"
+                },
+                success: function(data) {
+                    document.getElementById('__REQUESTDIGEST').value = data.d.GetContextWebInformation.FormDigestValue;
+                },
+                error: function(error) {
+                    console.error('Error getting request digest:', error);
+                }
+            });
+        });
+    </script>
+
+    <input type="hidden" id="__REQUESTDIGEST" value=""/>
+
 </body>
 </html>
